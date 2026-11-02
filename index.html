@@ -66,11 +66,20 @@
         .filters button { margin-top: 0; padding: 6px 12px; }
         .filters input[type=date] { padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; }
         #filterInfo { color: #555; margin-left: auto; }
+        .tabs { display: flex; gap: 8px; border-bottom: 2px solid #0066cc; margin-bottom: 25px; }
+        .tab-btn { margin-top: 0; background: #e9eef5; color: #333; border-radius: 4px 4px 0 0; }
+        .tab-btn:hover { background: #d5e0ee; }
+        .tab-btn.active { background: #0066cc; color: white; }
         .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 1000; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="tabs">
+            <button class="tab-btn active" id="btn-leadtime" onclick="showTab('leadtime')">Czas realizacji</button>
+            <button class="tab-btn" id="btn-throughput" onclick="showTab('throughput')">Tempo dostarczania</button>
+        </div>
+        <div id="tab-leadtime">
         <h1>📊 JMP Dashboard - Analiza Czasu Realizacji</h1>
         <p class="subtitle">Interaktywny wykres scatterplot: Data ukończenia (oś X) vs Czas realizacji dni (oś Y)</p>
         
@@ -139,6 +148,23 @@
             </thead>
             <tbody id="dataTableBody"></tbody>
         </table>
+        </div>
+
+        <div id="tab-throughput" style="display:none">
+            <h1>📈 Tempo dostarczania - wykres XmR</h1>
+            <p class="subtitle">Przepustowość tygodniowa (suma dzienna, tygodnie od 7 stycznia 2025) na podstawie pliku Throughput Daily.xlsx</p>
+            <div class="chart-container">
+                <div class="percentile-lines">
+                    <div class="percentile-line"><div class="line-sample" style="background:#333;height:3px"></div>Średnia / wartości</div>
+                    <div class="percentile-line"><div class="line-sample" style="background:#d32f2f"></div>Granice (UCL/LCL)</div>
+                    <div class="percentile-line"><span class="legend-dot" style="background:#d32f2f"></span>Poza granicami</div>
+                </div>
+                <svg id="xChart"></svg>
+                <svg id="mrChart"></svg>
+            </div>
+            <div class="stats" id="xmrStats"></div>
+            <p class="subtitle" id="xmrNote"></p>
+        </div>
     </div>
 
     <script>
@@ -557,6 +583,85 @@
         }
 
         init();
+    </script>
+
+    <script>
+        const DAILY_THROUGHPUT_START = '2025-01-07';
+        const DAILY_THROUGHPUT = [0,2,10,3,0,0,2,3,7,0,0,0,0,5,2,0,0,0,0,0,1,1,0,5,4,0,0,7,0,2,2,12,0,0,1,0,0,2,12,0,0,1,0,0,3,11,0,0,6,0,0,6,7,0,0,2,0,0,3,5,0,0,1,0,0,9,7,0,0,3,0,0,4,10,0,0,1,0,0,5,1,0,0,2,0,0,2,11,0,0,1,0,0,5,2,0,0,1,0,0,4,7,0];
+
+        function showTab(name) {
+            ['leadtime', 'throughput'].forEach(t => {
+                document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+                document.getElementById('btn-' + t).classList.toggle('active', t === name);
+            });
+            if (name === 'throughput') renderXmR(); else refresh();
+        }
+
+        function weeklyThroughput() {
+            const start = new Date(DAILY_THROUGHPUT_START + 'T00:00:00Z');
+            const weeks = [];
+            const full = Math.floor(DAILY_THROUGHPUT.length / 7);
+            for (let w = 0; w < full; w++) {
+                const d = new Date(start.getTime() + w * 7 * 86400000);
+                weeks.push({ label: d.toISOString().slice(0, 10), value: d3.sum(DAILY_THROUGHPUT.slice(w * 7, w * 7 + 7)) });
+            }
+            return { weeks, skipped: DAILY_THROUGHPUT.length - full * 7 };
+        }
+
+        function drawLimitChart(svgId, pts, title, center, ucl, lcl, color) {
+            const svg = d3.select('#' + svgId);
+            svg.selectAll('*').remove();
+            const margin = { top: 35, right: 90, bottom: 55, left: 60 };
+            const width = Math.max(800, svg.node().parentElement.clientWidth - 60) - margin.left - margin.right;
+            const height = 280;
+            svg.attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom);
+            const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+            const x = d3.scalePoint().domain(pts.map(p => p.label)).range([0, width]).padding(0.5);
+            const vals = pts.map(p => p.value).filter(v => v !== null);
+            const lo = Math.min(lcl, d3.min(vals)), hi = Math.max(ucl, d3.max(vals));
+            const y = d3.scaleLinear().domain([lo - (hi - lo) * 0.1, hi + (hi - lo) * 0.1]).nice().range([height, 0]);
+            g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x)).selectAll('text').attr('transform', 'rotate(-45)').style('text-anchor', 'end');
+            g.append('g').call(d3.axisLeft(y));
+            g.append('text').attr('x', width / 2).attr('y', -15).attr('text-anchor', 'middle').style('font-weight', 600).text(title);
+            const line = (v, c, dash, label) => {
+                g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(v)).attr('y2', y(v)).attr('stroke', c).attr('stroke-width', 1.5).attr('stroke-dasharray', dash);
+                g.append('text').attr('x', width + 5).attr('y', y(v) + 4).attr('font-size', 11).attr('fill', c).text(`${label} ${v.toFixed(2)}`);
+            };
+            line(ucl, '#d32f2f', '6,4', 'UCL');
+            line(center, '#555', '', 'Śr.');
+            line(lcl, '#d32f2f', '6,4', 'LCL');
+            const defined = pts.filter(p => p.value !== null);
+            g.append('path').datum(defined).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
+                .attr('d', d3.line().x(p => x(p.label)).y(p => y(p.value)));
+            g.selectAll('circle').data(defined).enter().append('circle')
+                .attr('cx', p => x(p.label)).attr('cy', p => y(p.value)).attr('r', 5)
+                .attr('fill', p => (p.value > ucl || p.value < lcl) ? '#d32f2f' : color)
+                .append('title').text(p => `Tydzień od ${p.label}: ${p.value}`);
+        }
+
+        function renderXmR() {
+            const { weeks, skipped } = weeklyThroughput();
+            const xs = weeks.map(w => w.value);
+            const mr = xs.map((v, i) => i === 0 ? null : Math.abs(v - xs[i - 1]));
+            const xBar = d3.mean(xs);
+            const mrBar = d3.mean(mr.filter(v => v !== null));
+            const xUcl = xBar + 2.66 * mrBar, xLcl = xBar - 2.66 * mrBar;
+            const mrUcl = mrBar + 3.27 * mrBar, mrLcl = mrBar - 3.27 * mrBar;
+            drawLimitChart('xChart', weeks, 'X - przepustowość tygodniowa (liczba dostarczonych)', xBar, xUcl, xLcl, '#1f77b4');
+            drawLimitChart('mrChart', weeks.map((w, i) => ({ label: w.label, value: mr[i] })), 'MR - ruchomy rozstęp (moving range)', mrBar, mrUcl, mrLcl, '#2ca02c');
+            const box = (l, v, d) => `<div class="stat-box"><div class="stat-label">${l}</div><div class="stat-value">${v}</div><div class="stat-detail">${d}</div></div>`;
+            document.getElementById('xmrStats').innerHTML =
+                box('Średnia (X̄)', xBar.toFixed(2), `n = ${xs.length} tygodni`) +
+                box('Średni MR (MR̄)', mrBar.toFixed(2), 'średnia ruchomych rozstępów') +
+                box('Korytarz X', `${xLcl.toFixed(2)} – ${xUcl.toFixed(2)}`, 'X̄ ± 2,66 × MR̄') +
+                box('Granice MR', `${mrLcl.toFixed(2)} – ${mrUcl.toFixed(2)}`, 'MR̄ ± 3,27 × MR̄');
+            document.getElementById('xmrNote').textContent = skipped
+                ? `Pominięto ostatni niepełny tydzień (${skipped} dni) - wykres obejmuje tylko pełne tygodnie.` : '';
+        }
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('tab-throughput').style.display !== 'none') renderXmR();
+        });
     </script>
 </body>
 </html>
