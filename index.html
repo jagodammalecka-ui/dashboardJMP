@@ -25,7 +25,7 @@
         button.danger { background: #d32f2f; }
         button.danger:hover { background: #b71c1c; }
         
-        .chart-container { background: #fafafa; border-radius: 6px; padding: 20px; margin-bottom: 30px; position: relative; }
+        .chart-container { background: #fafafa; border-radius: 6px; padding: 20px; margin-bottom: 30px; position: relative; overflow-x: auto; }
         svg { display: block; margin: 0 auto; }
         
         .legend { display: flex; gap: 30px; justify-content: center; margin: 20px 0; flex-wrap: wrap; font-size: 13px; }
@@ -63,12 +63,16 @@
         .section-title { font-size: 16px; font-weight: 600; color: #333; margin: 30px 0 15px 0; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
         
         .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 1000; }
+        
+        .grid-line { stroke: #e0e0e0; stroke-dasharray: 2,2; opacity: 0.5; }
+        .axis-label { fill: #666; font-size: 12px; }
+        .axis-title { fill: #333; font-size: 13px; font-weight: 600; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 JMP Dashboard - Analiza Czasu Realizacji</h1>
-        <p class="subtitle">Interaktywny wykres scatterplot czasów realizacji projektów z możliwością edycji danych</p>
+        <p class="subtitle">Interaktywny wykres scatterplot: Data ukończenia (oś X) vs Czas realizacji dni (oś Y)</p>
         
         <div class="controls">
             <div class="control-group">
@@ -107,7 +111,7 @@
                 <div class="percentile-line"><div class="line-sample" style="background: #ffa500; opacity: 0.7;"></div>85 percentyl</div>
                 <div class="percentile-line"><div class="line-sample" style="background: #d32f2f; opacity: 0.9;"></div>90 percentyl</div>
             </div>
-            <svg id="chart" width="100%" height="500"></svg>
+            <svg id="chart"></svg>
         </div>
         
         <div class="stats" id="statsContainer"></div>
@@ -216,6 +220,19 @@
         };
 
         const Calculator = {
+            parseDate(dateStr) {
+                const months = {
+                    'Stycznia': 0, 'Lutego': 1, 'Marca': 2, 'Kwietnia': 3,
+                    'Maja': 4, 'Czerwca': 5, 'Lipca': 6, 'Sierpnia': 7,
+                    'Września': 8, 'Października': 9, 'Listopada': 10, 'Grudnia': 11
+                };
+                const parts = dateStr.split(' ');
+                const day = parseInt(parts[0]);
+                const month = months[parts[1]];
+                const year = parseInt(parts[2]);
+                return new Date(year, month, day);
+            },
+            
             percentile(arr, p) {
                 if (arr.length === 0) return 0;
                 const sorted = [...arr].sort((a, b) => a - b);
@@ -239,52 +256,64 @@
         };
 
         function renderChart(data) {
-            const margin = { top: 20, right: 30, bottom: 40, left: 60 };
+            const margin = { top: 20, right: 30, bottom: 60, left: 60 };
             const svg = document.getElementById('chart');
-            const width = svg.clientWidth - margin.left - margin.right;
-            const height = 450 - margin.top - margin.bottom;
+            const width = Math.max(800, svg.parentElement.clientWidth - margin.left - margin.right - 20);
+            const height = 500 - margin.top - margin.bottom;
             
-            if (width <= 0) return;
+            svg.setAttribute('width', width + margin.left + margin.right);
+            svg.setAttribute('height', height + margin.top + margin.bottom);
             
             svg.innerHTML = '';
             
             const g = d3.select('#chart').append('g')
                 .attr('transform', `translate(${margin.left},${margin.top})`);
             
-            const xScale = d3.scaleLinear().domain([0, d3.max(data, d => d["Czas realizacji"]) + 30]).range([0, width]);
-            const yScale = d3.scaleBand().domain(['S', 'M', 'L']).range([0, height]).padding(0.3);
+            // Parse dates
+            const parsedData = data.map(d => ({
+                ...d,
+                date: Calculator.parseDate(d["Data ukończenia"])
+            })).sort((a, b) => a.date - b.date);
             
-            // Percentile lines
-            const allValues = data.map(d => d["Czas realizacji"]);
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(parsedData, d => d.date))
+                .range([0, width]);
+            
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(parsedData, d => d["Czas realizacji"]) + 30])
+                .range([height, 0]);
+            
+            // Percentile lines (horizontal)
+            const allValues = parsedData.map(d => d["Czas realizacji"]);
             const p50 = Calculator.percentile(allValues, 50);
             const p85 = Calculator.percentile(allValues, 85);
             const p90 = Calculator.percentile(allValues, 90);
             
             const percentiles = [
-                { value: p50, color: '#ff6b6b', opacity: 0.3, label: '50' },
-                { value: p85, color: '#ffa500', opacity: 0.5, label: '85' },
-                { value: p90, color: '#d32f2f', opacity: 0.7, label: '90' }
+                { value: p50, color: '#ff6b6b', opacity: 0.3, label: '50%' },
+                { value: p85, color: '#ffa500', opacity: 0.5, label: '85%' },
+                { value: p90, color: '#d32f2f', opacity: 0.7, label: '90%' }
             ];
             
             percentiles.forEach(p => {
                 g.append('line')
-                    .attr('x1', xScale(p.value))
-                    .attr('x2', xScale(p.value))
-                    .attr('y1', 0)
-                    .attr('y2', height)
+                    .attr('x1', 0)
+                    .attr('x2', width)
+                    .attr('y1', yScale(p.value))
+                    .attr('y2', yScale(p.value))
                     .attr('stroke', p.color)
                     .attr('stroke-width', 2)
                     .attr('opacity', p.opacity)
                     .attr('stroke-dasharray', '5,5');
                 
                 g.append('text')
-                    .attr('x', xScale(p.value))
-                    .attr('y', -5)
-                    .attr('text-anchor', 'middle')
+                    .attr('x', width - 5)
+                    .attr('y', yScale(p.value) - 5)
+                    .attr('text-anchor', 'end')
                     .attr('font-size', '11px')
                     .attr('fill', p.color)
                     .attr('font-weight', 'bold')
-                    .text(p.label + '%');
+                    .text(p.label + ' (' + p.value + 'd)');
             });
             
             // Color mapping
@@ -292,45 +321,68 @@
             
             // Scatter dots
             g.selectAll('.dot')
-                .data(data)
+                .data(parsedData)
                 .enter()
                 .append('circle')
                 .attr('class', 'dot')
-                .attr('cx', d => xScale(d["Czas realizacji"]))
-                .attr('cy', d => yScale(d["Deklarowany rozmiar"]) + yScale.bandwidth() / 2)
-                .attr('r', 5)
+                .attr('cx', d => xScale(d.date))
+                .attr('cy', d => yScale(d["Czas realizacji"]))
+                .attr('r', 6)
                 .attr('fill', d => colors[d["Deklarowany rozmiar"]])
                 .attr('opacity', 0.7)
                 .attr('stroke', '#fff')
-                .attr('stroke-width', 1)
+                .attr('stroke-width', 2)
                 .on('mouseover', function(e, d) {
-                    d3.select(this).attr('r', 7).attr('opacity', 1);
+                    d3.select(this).attr('r', 8).attr('opacity', 1);
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'tooltip';
+                    tooltip.style.left = e.pageX + 10 + 'px';
+                    tooltip.style.top = e.pageY + 10 + 'px';
+                    tooltip.innerHTML = `<strong>${d["Data ukończenia"]}</strong><br/>Rozmiar: ${d["Deklarowany rozmiar"]}<br/>Czas: ${d["Czas realizacji"]} dni`;
+                    document.body.appendChild(tooltip);
+                    this.tooltip = tooltip;
                 })
                 .on('mouseout', function() {
-                    d3.select(this).attr('r', 5).attr('opacity', 0.7);
+                    d3.select(this).attr('r', 6).attr('opacity', 0.7);
+                    if (this.tooltip) {
+                        this.tooltip.remove();
+                        delete this.tooltip;
+                    }
                 });
             
-            // X axis
+            // X axis (dates)
             g.append('g')
                 .attr('transform', `translate(0,${height})`)
-                .call(d3.axisBottom(xScale))
-                .append('text')
-                .attr('x', width / 2)
-                .attr('y', 35)
-                .attr('fill', '#666')
-                .attr('text-anchor', 'middle')
-                .text('Czas realizacji (dni)');
+                .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat('%d %b %Y')))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .attr('text-anchor', 'end')
+                .attr('font-size', '11px');
             
-            // Y axis
+            // X axis label
+            g.append('text')
+                .attr('x', width / 2)
+                .attr('y', height + 50)
+                .attr('fill', '#333')
+                .attr('text-anchor', 'middle')
+                .attr('font-weight', 'bold')
+                .text('📅 Data ukończenia');
+            
+            // Y axis (days)
             g.append('g')
                 .call(d3.axisLeft(yScale))
-                .append('text')
+                .selectAll('text')
+                .attr('font-size', '11px');
+            
+            // Y axis label
+            g.append('text')
                 .attr('transform', 'rotate(-90)')
                 .attr('y', -45)
                 .attr('x', -height / 2)
-                .attr('fill', '#666')
+                .attr('fill', '#333')
                 .attr('text-anchor', 'middle')
-                .text('Rozmiar projektu');
+                .attr('font-weight', 'bold')
+                .text('⏱️ Czas realizacji (dni)');
             
             updateStats(data);
             updateCounts(data);
@@ -394,7 +446,7 @@
             const formattedDate = new Intl.DateTimeFormat('pl-PL', options).format(dateObj);
             
             const data = DataManager.add(formattedDate, size, time);
-            showMessage(`✓ Dodano nowy punkt: ${size} - ${time} dni`, 'success');
+            showMessage(`✓ Dodano nowy punkt: ${size} - ${time} dni (${formattedDate})`, 'success');
             
             document.getElementById('newTime').value = '';
             document.getElementById('newDate').value = '';
