@@ -49,9 +49,9 @@
         .data-table th { background: #0066cc; color: white; padding: 12px; text-align: left; }
         .data-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
         .data-table tr:hover { background: #f9f9f9; }
-        .data-table .size-s { color: #00d4ff; font-weight: 600; }
-        .data-table .size-m { color: #00ff88; font-weight: 600; }
-        .data-table .size-l { color: #ffaa00; font-weight: 600; }
+        .data-table .size-s { color: #1f77b4; font-weight: 600; }
+        .data-table .size-m { color: #2ca02c; font-weight: 600; }
+        .data-table .size-l { color: #e07b00; font-weight: 600; }
         .delete-btn { background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; }
         .delete-btn:hover { background: #b71c1c; }
         
@@ -63,10 +63,6 @@
         .section-title { font-size: 16px; font-weight: 600; color: #333; margin: 30px 0 15px 0; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
         
         .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 1000; }
-        
-        .grid-line { stroke: #e0e0e0; stroke-dasharray: 2,2; opacity: 0.5; }
-        .axis-label { fill: #666; font-size: 12px; }
-        .axis-title { fill: #333; font-size: 13px; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -102,9 +98,9 @@
         
         <div class="chart-container">
             <div class="legend">
-                <div class="legend-item"><span class="legend-dot" style="background: #00d4ff;"></span>S - Małe (n=<span id="countS">0</span>)</div>
-                <div class="legend-item"><span class="legend-dot" style="background: #00ff88;"></span>M - Średnie (n=<span id="countM">0</span>)</div>
-                <div class="legend-item"><span class="legend-dot" style="background: #ffaa00;"></span>L - Duże (n=<span id="countL">0</span>)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #1f77b4;"></span>S - Małe (n=<span id="countS">0</span>)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #2ca02c;"></span>M - Średnie (n=<span id="countM">0</span>)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #e07b00;"></span>L - Duże (n=<span id="countL">0</span>)</div>
             </div>
             <div class="percentile-lines">
                 <div class="percentile-line"><div class="line-sample" style="background: #ff6b6b; opacity: 0.5;"></div>50 percentyl</div>
@@ -212,7 +208,11 @@
             deleteOldest() {
                 const data = this.getData();
                 if (data.length > 0) {
-                    data.shift();
+                    let oldest = 0;
+                    data.forEach((d, i) => {
+                        if (Calculator.parseDate(d["Data ukończenia"]) < Calculator.parseDate(data[oldest]["Data ukończenia"])) oldest = i;
+                    });
+                    data.splice(oldest, 1);
                     this.save(data);
                 }
                 return data;
@@ -220,17 +220,24 @@
         };
 
         const Calculator = {
+            // Obsługuje ISO (YYYY-MM-DD) oraz polski zapis "15 Lipca 2024" (wielkość liter bez znaczenia)
             parseDate(dateStr) {
-                const months = {
-                    'Stycznia': 0, 'Lutego': 1, 'Marca': 2, 'Kwietnia': 3,
-                    'Maja': 4, 'Czerwca': 5, 'Lipca': 6, 'Sierpnia': 7,
-                    'Września': 8, 'Października': 9, 'Listopada': 10, 'Grudnia': 11
-                };
-                const parts = dateStr.split(' ');
-                const day = parseInt(parts[0]);
-                const month = months[parts[1]];
-                const year = parseInt(parts[2]);
-                return new Date(year, month, day);
+                const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+                if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+                const months = ['stycznia','lutego','marca','kwietnia','maja','czerwca',
+                    'lipca','sierpnia','września','października','listopada','grudnia'];
+                const parts = dateStr.trim().split(/\s+/);
+                const month = months.indexOf((parts[1] || '').toLowerCase());
+                return new Date(parseInt(parts[2]), month, parseInt(parts[0]));
+            },
+
+            formatDate(dateStr) {
+                return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long', day: 'numeric' })
+                    .format(this.parseDate(dateStr));
+            },
+
+            escapeHtml(v) {
+                return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             },
             
             percentile(arr, p) {
@@ -317,7 +324,7 @@
             });
             
             // Color mapping
-            const colors = { S: '#00d4ff', M: '#00ff88', L: '#ffaa00' };
+            const colors = { S: '#1f77b4', M: '#2ca02c', L: '#e07b00' };
             
             // Scatter dots
             g.selectAll('.dot')
@@ -338,7 +345,7 @@
                     tooltip.className = 'tooltip';
                     tooltip.style.left = e.pageX + 10 + 'px';
                     tooltip.style.top = e.pageY + 10 + 'px';
-                    tooltip.innerHTML = `<strong>${d["Data ukończenia"]}</strong><br/>Rozmiar: ${d["Deklarowany rozmiar"]}<br/>Czas: ${d["Czas realizacji"]} dni`;
+                    tooltip.innerHTML = `<strong>${Calculator.escapeHtml(Calculator.formatDate(d["Data ukończenia"]))}</strong><br/>Rozmiar: ${d["Deklarowany rozmiar"]}<br/>Czas: ${d["Czas realizacji"]} dni`;
                     document.body.appendChild(tooltip);
                     this.tooltip = tooltip;
                 })
@@ -415,7 +422,7 @@
             const tbody = document.getElementById('dataTableBody');
             tbody.innerHTML = data.map((d, i) => `
                 <tr>
-                    <td>${d["Data ukończenia"]}</td>
+                    <td>${Calculator.escapeHtml(Calculator.formatDate(d["Data ukończenia"]))}</td>
                     <td class="size-${d["Deklarowany rozmiar"].toLowerCase()}">${d["Deklarowany rozmiar"]}</td>
                     <td>${d["Czas realizacji"]} dni</td>
                     <td><button class="delete-btn" onclick="deleteRow(${i})">Usuń</button></td>
@@ -441,11 +448,8 @@
                 return;
             }
             
-            const dateObj = new Date(date + 'T00:00:00Z');
-            const options = { year: 'numeric', month: 'long', day: 'numeric' };
-            const formattedDate = new Intl.DateTimeFormat('pl-PL', options).format(dateObj);
-            
-            const data = DataManager.add(formattedDate, size, time);
+            const formattedDate = Calculator.formatDate(date);
+            const data = DataManager.add(date, size, time);
             showMessage(`✓ Dodano nowy punkt: ${size} - ${time} dni (${formattedDate})`, 'success');
             
             document.getElementById('newTime').value = '';
@@ -455,12 +459,12 @@
         }
 
         function deleteOldestData() {
-            if (confirm('Czy usunąć najstarsze dane? Ta operacja usunie pierwszy punkt z listy.')) {
+            if (confirm('Czy usunąć najstarsze dane? Zostanie usunięty punkt o najstarszej dacie ukończenia.')) {
                 const data = DataManager.deleteOldest();
                 if (data.length > 0) {
                     showMessage('✓ Najstarsza data usunięta. Prognoza zaktualizowana.', 'success');
                 } else {
-                    showMessage('⚠️ Brak danych do usunięcia', 'warning');
+                    showMessage('⚠️ Brak danych do usunięcia', 'error');
                 }
                 renderChart(data);
             }
