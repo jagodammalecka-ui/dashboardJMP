@@ -619,7 +619,7 @@
             const x = d3.scalePoint().domain(pts.map(p => p.label)).range([0, width]).padding(0.5);
             const vals = pts.map(p => p.value).filter(v => v !== null);
             const lo = Math.min(lcl, d3.min(vals)), hi = Math.max(ucl, d3.max(vals));
-            const y = d3.scaleLinear().domain([lo - (hi - lo) * 0.1, hi + (hi - lo) * 0.1]).nice().range([height, 0]);
+            const y = d3.scaleLinear().domain([Math.max(0, lo - (hi - lo) * 0.1), hi + (hi - lo) * 0.1]).nice().range([height, 0]);
             g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x)).selectAll('text').attr('transform', 'rotate(-45)').style('text-anchor', 'end');
             g.append('g').call(d3.axisLeft(y));
             g.append('text').attr('x', width / 2).attr('y', -15).attr('text-anchor', 'middle').style('font-weight', 600).text(title);
@@ -645,16 +645,16 @@
             const mr = xs.map((v, i) => i === 0 ? null : Math.abs(v - xs[i - 1]));
             const xBar = d3.mean(xs);
             const mrBar = d3.mean(mr.filter(v => v !== null));
-            const xUcl = xBar + 2.66 * mrBar, xLcl = xBar - 2.66 * mrBar;
-            const mrUcl = mrBar + 3.27 * mrBar, mrLcl = mrBar - 3.27 * mrBar;
+            const xUcl = xBar + 2.66 * mrBar, xLcl = Math.max(0, xBar - 2.66 * mrBar);
+            const mrUcl = mrBar + 3.27 * mrBar, mrLcl = Math.max(0, mrBar - 3.27 * mrBar);
             drawLimitChart('xChart', weeks, 'X - przepustowość tygodniowa (liczba dostarczonych)', xBar, xUcl, xLcl, '#1f77b4');
             drawLimitChart('mrChart', weeks.map((w, i) => ({ label: w.label, value: mr[i] })), 'MR - ruchomy rozstęp (moving range)', mrBar, mrUcl, mrLcl, '#2ca02c');
             const box = (l, v, d) => `<div class="stat-box"><div class="stat-label">${l}</div><div class="stat-value">${v}</div><div class="stat-detail">${d}</div></div>`;
             document.getElementById('xmrStats').innerHTML =
                 box('Średnia (X̄)', xBar.toFixed(2), `n = ${xs.length} tygodni`) +
                 box('Średni MR (MR̄)', mrBar.toFixed(2), 'średnia ruchomych rozstępów') +
-                box('Korytarz X', `${xLcl.toFixed(2)} – ${xUcl.toFixed(2)}`, 'X̄ ± 2,66 × MR̄') +
-                box('Granice MR', `${mrLcl.toFixed(2)} – ${mrUcl.toFixed(2)}`, 'MR̄ ± 3,27 × MR̄');
+                box('Korytarz X', `${xLcl.toFixed(2)} – ${xUcl.toFixed(2)}`, 'X̄ ± 2,66 × MR̄, dolna granica nie mniejsza niż 0') +
+                box('Granice MR', `${mrLcl.toFixed(2)} – ${mrUcl.toFixed(2)}`, 'MR̄ ± 3,27 × MR̄, dolna granica nie mniejsza niż 0');
             document.getElementById('xmrNote').textContent = skipped
                 ? `Pominięto ostatni niepełny tydzień (${skipped} dni) - wykres obejmuje tylko pełne tygodnie.` : '';
         }
