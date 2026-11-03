@@ -80,6 +80,7 @@
         <div class="tabs">
             <button class="tab-btn active" id="btn-leadtime" onclick="showTab('leadtime')">Czas realizacji</button>
             <button class="tab-btn" id="btn-throughput" onclick="showTab('throughput')">Tempo dostarczania</button>
+            <button class="tab-btn" id="btn-roadmap" onclick="showTab('roadmap')">Roadmapa i prognoza</button>
         </div>
         <div id="tab-leadtime">
         <h1>📊 JMP Dashboard - Analiza Czasu Realizacji</h1>
@@ -176,6 +177,63 @@
                     <li><strong>UCL(mR)</strong> = mR̄ + 3,27 × mR̄, <strong>LCL(mR)</strong> = mR̄ − 3,27 × mR̄ (ucięta do 0).</li>
                     <li>Punkty poza granicami kontrolnymi oznaczają sygnał specjalnej przyczyny zmienności (nie szum procesu).</li>
                     <li>Szerokość pasma σ = (UNPL − X̄) / 3 = 2,66 × mR̄ / 3 = <strong id="sigmaInfo">-</strong>. Pasma: C (X̄ → ±1σ), B (±1σ → ±2σ), A (±2σ → NPL).</li>
+                </ul>
+            </div>
+        </div>
+        <div id="tab-roadmap" style="display:none">
+            <style>
+                #tab-roadmap .data-table input, #tab-roadmap .data-table select, #tab-roadmap .inline-input { padding: 5px 8px; border: 1px solid #3a4553; border-radius: 4px; background: #151b22; color: #e0e0e0; color-scheme: dark; font-size: 13px; max-width: 100%; }
+                #tab-roadmap .data-table input[type=number] { width: 80px; }
+                #tab-roadmap .data-table input[type=checkbox] { width: auto; }
+                #tab-roadmap .data-table th { padding: 8px; }
+                #tab-roadmap .data-table td { padding: 6px 8px; }
+                #tab-roadmap button.small { margin-top: 0; padding: 5px 10px; font-size: 12px; }
+                #tab-roadmap .rm-card { background: #232b36; border-left: 4px solid #0066cc; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+                #tab-roadmap .rm-card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 10px; }
+                #tab-roadmap .rm-checks { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; margin-bottom: 6px; }
+                #tab-roadmap .rm-checks label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+                #tab-roadmap .chip { display: inline-flex; align-items: center; gap: 6px; background: #232b36; border: 1px solid #3a4553; border-radius: 14px; padding: 3px 6px 3px 12px; margin: 0 8px 8px 0; font-size: 13px; }
+                #tab-roadmap .chip button { margin: 0; padding: 0 6px; background: transparent; color: #f1a0a7; font-size: 14px; }
+                #tab-roadmap .risk { color: #ff6b6b; font-weight: 600; }
+                #tab-roadmap .ok { color: #8fd8a4; font-weight: 600; }
+            </style>
+            <h1>🗺️ Roadmapa i prognoza</h1>
+            <p class="subtitle">Wiele zespołów, wiele inicjatyw. Prognoza Monte Carlo (domyślnie scenariusz 85% ukończenia każdego epiku) uwzględnia estymaty czasu trwania, wartość w MD oraz capacity zespołów w kompetencjach.</p>
+            <div class="controls">
+                <div class="control-group"><label for="rmStart">Domyślna data startu</label><input type="date" id="rmStart" data-p="start"></div>
+                <div class="control-group"><label for="rmPct">Poziom pewności (%)</label><input type="number" id="rmPct" min="50" max="99" data-p="pct" data-num="1"></div>
+                <div class="control-group"><label for="rmSims">Liczba symulacji</label><input type="number" id="rmSims" min="200" max="20000" step="200" data-p="sims" data-num="1"></div>
+            </div>
+            <div class="section-title">🧩 Kompetencje</div>
+            <div id="rmComps"></div>
+            <input type="text" id="rmNewComp" class="inline-input" placeholder="Nowa kompetencja">
+            <button class="small" onclick="rmAddComp()">+ Dodaj kompetencję</button>
+            <div class="section-title">👥 Zespoły i capacity (MD / miesiąc w danej kompetencji)</div>
+            <div id="rmTeams"></div>
+            <input type="text" id="rmNewTeam" class="inline-input" placeholder="Nazwa zespołu">
+            <button class="small" onclick="rmAddTeam()">+ Dodaj zespół</button>
+            <div class="section-title">📌 Inicjatywy</div>
+            <div id="rmInits"></div>
+            <input type="text" id="rmNewInit" class="inline-input" placeholder="Nazwa inicjatywy">
+            <button class="small" onclick="rmAddInit()">+ Dodaj inicjatywę</button>
+            <button class="small secondary" onclick="rmReset()">Przywróć przykładowe dane</button>
+            <div id="rmMessage"></div>
+            <div class="section-title">📅 Gantt</div>
+            <div class="chart-container">
+                <div class="percentile-lines" id="rmLegend"></div>
+                <svg id="rmChart"></svg>
+            </div>
+            <div class="section-title">📋 Wyniki prognozy</div>
+            <table class="data-table"><thead><tr><th>Inicjatywa / epik</th><th>Zespół</th><th>Kompetencja</th><th>MD</th><th>Start (P50)</th><th>Koniec P50</th><th id="rmThPct">Koniec P85</th><th>Fixed date</th><th>Szansa na termin</th></tr></thead><tbody id="rmResultBody"></tbody></table>
+            <div class="section-title">ℹ️ Jak to działa</div>
+            <div class="xmr-info">
+                <ul>
+                    <li>Czas trwania epiku w każdej symulacji = losowa wartość z przedziału min–max (tygodnie), nie krótsza niż wynik z capacity: MD ÷ (capacity zespołu w kompetencji na dzień).</li>
+                    <li>Epiki tego samego zespołu w tej samej kompetencji dzielą jej capacity i są realizowane po kolei. Najpierw planowane są epiki z fixed date (wg daty), potem pozostałe wg kolejności na liście.</li>
+                    <li>Start epiku = późniejsza z dat: start inicjatywy (lub domyślny) i zwolnienie capacity.</li>
+                    <li>Na Gantcie pełny pasek to start → koniec P50, jaśniejszy fragment to P50 → koniec w wybranym poziomie pewności (domyślnie P85). Wiersz inicjatywy kończy się, gdy skończy się jej ostatni epik (w każdej symulacji osobno).</li>
+                    <li>Fixed date: romb na osi; epik jest „zagrożony”, gdy koniec na poziomie pewności wypada po tej dacie. Podajemy też szansę dotrzymania terminu.</li>
+                    <li>Brak capacity (0 MD) w danej kompetencji oznacza brak ograniczenia zasobowego – liczy się wyłącznie przedział min–max.</li>
                 </ul>
             </div>
         </div>
@@ -604,11 +662,11 @@
         const DAILY_THROUGHPUT = [0,2,10,3,0,0,2,3,7,0,0,0,0,5,2,0,0,0,0,0,1,1,0,5,4,0,0,7,0,2,2,12,0,0,1,0,0,2,12,0,0,1,0,0,3,11,0,0,6,0,0,6,7,0,0,2,0,0,3,5,0,0,1,0,0,9,7,0,0,3,0,0,4,10,0,0,1,0,0,5,1,0,0,2,0,0,2,11,0,0,1,0,0,5,2,0,0,1,0,0,4,7,0];
 
         function showTab(name) {
-            ['leadtime', 'throughput'].forEach(t => {
+            ['leadtime', 'throughput', 'roadmap'].forEach(t => {
                 document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
                 document.getElementById('btn-' + t).classList.toggle('active', t === name);
             });
-            if (name === 'throughput') renderXmR(); else refresh();
+            if (name === 'throughput') renderXmR(); else if (name === 'roadmap') initRoadmap(); else refresh();
         }
 
         function weeklyThroughput() {
@@ -699,6 +757,293 @@
         window.addEventListener('resize', () => {
             if (document.getElementById('tab-throughput').style.display !== 'none') renderXmR();
         });
+    </script>
+
+    <script>
+        const RM_KEY = 'jmpRoadmapV1';
+        const RM_COLORS = ['#1f77b4', '#e07b00', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#bcbd22', '#8c564b'];
+        let rm = null, rmId = 100;
+
+        function rmNextMonday() {
+            const d = new Date();
+            d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7 || 7));
+            return d.toISOString().slice(0, 10);
+        }
+
+        function rmDefaults() {
+            return {
+                start: rmNextMonday(), pct: 85, sims: 2000,
+                comps: ['Backend', 'Frontend', 'QA'],
+                teams: [
+                    { id: 1, name: 'Zespół A', cap: { Backend: 40, Frontend: 20, QA: 10 } },
+                    { id: 2, name: 'Zespół B', cap: { Backend: 10, Frontend: 40, QA: 20 } }
+                ],
+                inits: [
+                    { id: 1, name: 'Inicjatywa 1', start: '', teams: [1, 2], comps: ['Backend', 'Frontend', 'QA'], epics: [
+                        { name: 'Epik 1', md: 60, team: 1, comp: 'Backend', min: 4, max: 8, fixed: '' },
+                        { name: 'Epik 2', md: 40, team: 2, comp: 'Frontend', min: 3, max: 6, fixed: '' }
+                    ] },
+                    { id: 2, name: 'Inicjatywa 2', start: '', teams: [1, 2], comps: ['Backend', 'Frontend', 'QA'], epics: [
+                        { name: 'Epik 3', md: 50, team: 1, comp: 'Backend', min: 5, max: 9, fixed: '' },
+                        { name: 'Epik 4', md: 30, team: 2, comp: 'QA', min: 2, max: 4, fixed: '' }
+                    ] }
+                ]
+            };
+        }
+
+        function rmSave() { try { localStorage.setItem(RM_KEY, JSON.stringify(rm)); } catch (e) { /* brak miejsca */ } }
+        function rmEsc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+        function rmMsg(html) { document.getElementById('rmMessage').innerHTML = html; }
+
+        function initRoadmap() {
+            if (!rm) {
+                try { rm = JSON.parse(localStorage.getItem(RM_KEY)); } catch (e) { rm = null; }
+                if (!rm || !rm.teams || !rm.inits || !rm.comps) rm = rmDefaults();
+                rmId = 1000 + Math.max(0, ...rm.teams.map(t => t.id), ...rm.inits.map(i => i.id));
+                document.getElementById('tab-roadmap').addEventListener('change', rmOnChange);
+            }
+            rmRender();
+            rmRun();
+        }
+
+        function rmReset() { rm = rmDefaults(); rmSave(); rmRender(); rmRun(); }
+
+        function rmOnChange(e) {
+            const el = e.target;
+            if (el.dataset.arr) { // checkbox: zespół / kompetencja w inicjatywie
+                const path = el.dataset.arr.split('.');
+                let arr = rm;
+                path.forEach(k => { arr = arr[k]; });
+                const v = el.dataset.num ? +el.dataset.val : el.dataset.val;
+                const idx = arr.indexOf(v);
+                if (el.checked && idx < 0) arr.push(v);
+                if (!el.checked && idx >= 0) arr.splice(idx, 1);
+                rm.inits.forEach(i => i.epics.forEach(ep => {
+                    if (!i.teams.includes(ep.team)) ep.team = '';
+                    if (!i.comps.includes(ep.comp)) ep.comp = '';
+                }));
+                rmSave(); rmRender(); rmRun();
+                return;
+            }
+            if (!el.dataset.p) return;
+            const path = el.dataset.p.split('.');
+            let o = rm;
+            path.slice(0, -1).forEach(k => { o = o[k]; });
+            const last = path[path.length - 1];
+            o[last] = el.dataset.num ? (el.value === '' ? '' : +el.value) : el.value;
+            rmSave();
+            if (el.dataset.rerender) rmRender();
+            rmRun();
+        }
+
+        function rmAddComp() {
+            const inp = document.getElementById('rmNewComp'), n = inp.value.trim().replace(/\./g, '');
+            if (!n || rm.comps.includes(n)) return;
+            rm.comps.push(n); inp.value = '';
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmRemoveComp(i) {
+            const n = rm.comps[i];
+            rm.comps.splice(i, 1);
+            rm.teams.forEach(t => { delete t.cap[n]; });
+            rm.inits.forEach(x => { x.comps = x.comps.filter(c => c !== n); x.epics.forEach(e => { if (e.comp === n) e.comp = ''; }); });
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmAddTeam() {
+            const inp = document.getElementById('rmNewTeam'), n = inp.value.trim();
+            if (!n) return;
+            const cap = {}; rm.comps.forEach(c => { cap[c] = 0; });
+            rm.teams.push({ id: ++rmId, name: n, cap }); inp.value = '';
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmRemoveTeam(i) {
+            const id = rm.teams[i].id;
+            rm.teams.splice(i, 1);
+            rm.inits.forEach(x => { x.teams = x.teams.filter(t => t !== id); x.epics.forEach(e => { if (e.team === id) e.team = ''; }); });
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmAddInit() {
+            const inp = document.getElementById('rmNewInit'), n = inp.value.trim() || ('Inicjatywa ' + (rm.inits.length + 1));
+            rm.inits.push({ id: ++rmId, name: n, start: '', teams: [], comps: [], epics: [] }); inp.value = '';
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmRemoveInit(i) { rm.inits.splice(i, 1); rmSave(); rmRender(); rmRun(); }
+        function rmAddEpic(i) {
+            const x = rm.inits[i];
+            x.epics.push({ name: 'Epik ' + (x.epics.length + 1), md: 20, team: x.teams[0] ?? '', comp: x.comps[0] ?? '', min: 2, max: 4, fixed: '' });
+            rmSave(); rmRender(); rmRun();
+        }
+        function rmRemoveEpic(i, j) { rm.inits[i].epics.splice(j, 1); rmSave(); rmRender(); rmRun(); }
+
+        function rmRender() {
+            ['start', 'pct', 'sims'].forEach(k => { document.querySelector(`#tab-roadmap [data-p="${k}"]`).value = rm[k]; });
+
+            document.getElementById('rmComps').innerHTML = rm.comps.map((c, i) =>
+                `<span class="chip">${rmEsc(c)}<button title="Usuń" onclick="rmRemoveComp(${i})">×</button></span>`).join('') || '<p class="subtitle">Brak kompetencji.</p>';
+
+            document.getElementById('rmTeams').innerHTML = `<table class="data-table"><thead><tr><th>Zespół</th>${rm.comps.map(c => `<th>${rmEsc(c)} (MD/mies.)</th>`).join('')}<th></th></tr></thead><tbody>` +
+                rm.teams.map((t, i) => `<tr><td><input type="text" value="${rmEsc(t.name)}" data-p="teams.${i}.name" data-rerender="1"></td>` +
+                    rm.comps.map(c => `<td><input type="number" min="0" step="1" value="${t.cap[c] ?? 0}" data-p="teams.${i}.cap.${rmEsc(c)}" data-num="1"></td>`).join('') +
+                    `<td><button class="small danger" onclick="rmRemoveTeam(${i})">Usuń</button></td></tr>`).join('') + '</tbody></table>';
+
+            document.getElementById('rmInits').innerHTML = rm.inits.map((x, i) => {
+                const teamChecks = rm.teams.map(t => `<label><input type="checkbox" data-arr="inits.${i}.teams" data-val="${t.id}" data-num="1" ${x.teams.includes(t.id) ? 'checked' : ''}>${rmEsc(t.name)}</label>`).join('');
+                const compChecks = rm.comps.map(c => `<label><input type="checkbox" data-arr="inits.${i}.comps" data-val="${rmEsc(c)}" ${x.comps.includes(c) ? 'checked' : ''}>${rmEsc(c)}</label>`).join('');
+                const teamOpts = ep => `<option value="">—</option>` + rm.teams.filter(t => x.teams.includes(t.id)).map(t => `<option value="${t.id}" ${t.id === ep.team ? 'selected' : ''}>${rmEsc(t.name)}</option>`).join('');
+                const compOpts = ep => `<option value="">—</option>` + x.comps.map(c => `<option value="${rmEsc(c)}" ${c === ep.comp ? 'selected' : ''}>${rmEsc(c)}</option>`).join('');
+                return `<div class="rm-card">
+                    <div class="rm-card-head">
+                        <input type="text" class="inline-input" style="font-weight:600;min-width:220px" value="${rmEsc(x.name)}" data-p="inits.${i}.name">
+                        <label style="font-size:13px">Start: <input type="date" class="inline-input" value="${x.start}" data-p="inits.${i}.start"></label>
+                        <span style="color:#9aa5b1;font-size:12px">(puste = domyślna data startu)</span>
+                        <button class="small danger" style="margin-left:auto" onclick="rmRemoveInit(${i})">Usuń inicjatywę</button>
+                    </div>
+                    <div class="rm-checks"><strong>Zespoły:</strong>${teamChecks || '—'}</div>
+                    <div class="rm-checks"><strong>Kompetencje:</strong>${compChecks || '—'}</div>
+                    <table class="data-table"><thead><tr><th>Epik</th><th>Wartość (MD)</th><th>Zespół</th><th>Kompetencja</th><th>Min (tyg.)</th><th>Max (tyg.)</th><th>Fixed date</th><th></th></tr></thead><tbody>` +
+                    x.epics.map((ep, j) => `<tr>
+                        <td><input type="text" value="${rmEsc(ep.name)}" data-p="inits.${i}.epics.${j}.name"></td>
+                        <td><input type="number" min="0" value="${ep.md}" data-p="inits.${i}.epics.${j}.md" data-num="1"></td>
+                        <td><select data-p="inits.${i}.epics.${j}.team" data-num="1">${teamOpts(ep)}</select></td>
+                        <td><select data-p="inits.${i}.epics.${j}.comp">${compOpts(ep)}</select></td>
+                        <td><input type="number" min="0.5" step="0.5" value="${ep.min}" data-p="inits.${i}.epics.${j}.min" data-num="1"></td>
+                        <td><input type="number" min="0.5" step="0.5" value="${ep.max}" data-p="inits.${i}.epics.${j}.max" data-num="1"></td>
+                        <td><input type="date" value="${ep.fixed}" data-p="inits.${i}.epics.${j}.fixed"></td>
+                        <td><button class="small danger" onclick="rmRemoveEpic(${i},${j})">×</button></td></tr>`).join('') +
+                    `</tbody></table><button class="small" style="margin-top:10px" onclick="rmAddEpic(${i})">+ Dodaj epik</button></div>`;
+            }).join('') || '<p class="subtitle">Dodaj co najmniej dwie inicjatywy.</p>';
+        }
+
+        const rmDay = s => Date.parse(s + 'T00:00:00Z') / 86400000;
+        const rmFmt = d => new Date(Math.round(d) * 86400000).toISOString().slice(0, 10);
+        function rmPctile(arr, p) {
+            const a = Float64Array.from(arr).sort();
+            return a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))];
+        }
+
+        function rmSimulate(items, sims) {
+            const out = items.map(() => ({ s: new Float64Array(sims), e: new Float64Array(sims) }));
+            const initEnd = rm.inits.map(() => new Float64Array(sims));
+            const initStart = rm.inits.map(() => new Float64Array(sims).fill(Infinity));
+            for (let k = 0; k < sims; k++) {
+                const free = new Map();
+                items.forEach((it, n) => {
+                    const key = it.ep.team + '|' + it.ep.comp;
+                    const lo = Math.min(it.ep.min, it.ep.max), hi = Math.max(it.ep.min, it.ep.max);
+                    const dur = (lo + Math.random() * (hi - lo)) * 7;
+                    const effort = it.rate > 0 ? it.ep.md / it.rate : 0;
+                    const s = Math.max(it.base, it.rate > 0 ? (free.get(key) || 0) : 0);
+                    const e = s + Math.max(dur, effort);
+                    if (it.rate > 0) free.set(key, s + effort);
+                    out[n].s[k] = s; out[n].e[k] = e;
+                    if (e > initEnd[it.ii][k]) initEnd[it.ii][k] = e;
+                    if (s < initStart[it.ii][k]) initStart[it.ii][k] = s;
+                });
+            }
+            return { out, initEnd, initStart };
+        }
+
+        function rmRun() {
+            const warn = [];
+            if (!rm.start) { rmMsg('<div class="message error">Podaj domyślną datę startu.</div>'); return; }
+            const sims = Math.max(200, Math.min(20000, +rm.sims || 2000));
+            const p = Math.max(50, Math.min(99, +rm.pct || 85)) / 100;
+            const pl = Math.round(p * 100);
+            document.getElementById('rmThPct').textContent = 'Koniec P' + pl;
+
+            const items = [];
+            rm.inits.forEach((x, ii) => x.epics.forEach((ep, ei) => {
+                const t = rm.teams.find(t => t.id === ep.team);
+                if (!t || !ep.comp) { warn.push(`Epik „${ep.name}” (${x.name}) nie ma przypisanego zespołu/kompetencji – pominięto.`); return; }
+                const cap = +(t.cap[ep.comp] || 0);
+                if (cap <= 0) warn.push(`Zespół „${t.name}” nie ma capacity w kompetencji „${ep.comp}” – epik „${ep.name}” liczony tylko z przedziału min–max.`);
+                items.push({ ii, ei, ep, x, t, rate: cap * 12 / 365, base: rmDay(x.start || rm.start) });
+            }));
+            // fixed date najpierw (wg daty), reszta wg kolejności wprowadzenia
+            items.sort((a, b) => (a.ep.fixed ? 0 : 1) - (b.ep.fixed ? 0 : 1) || (a.ep.fixed && b.ep.fixed ? a.ep.fixed.localeCompare(b.ep.fixed) : 0) || a.ii - b.ii || a.ei - b.ei);
+            if (rm.inits.length < 2) warn.push('Dodaj co najmniej dwie inicjatywy.');
+            rmMsg(warn.map(w => `<div class="message info">${rmEsc(w)}</div>`).join(''));
+            if (!items.length) { d3.select('#rmChart').selectAll('*').remove(); document.getElementById('rmResultBody').innerHTML = ''; return; }
+
+            const sim = rmSimulate(items, sims);
+            items.forEach((it, n) => {
+                const r = sim.out[n];
+                it.s50 = rmPctile(r.s, 0.5); it.e50 = rmPctile(r.e, 0.5); it.eP = rmPctile(r.e, p);
+                if (it.ep.fixed) {
+                    const f = rmDay(it.ep.fixed);
+                    it.hit = Array.from(r.e).filter(v => v <= f).length / sims;
+                    it.risk = it.eP > f;
+                }
+            });
+            const inits = rm.inits.map((x, ii) => {
+                const mine = items.filter(i => i.ii === ii);
+                if (!mine.length) return null;
+                return { ii, x, s50: rmPctile(sim.initStart[ii], 0.5), e50: rmPctile(sim.initEnd[ii], 0.5), eP: rmPctile(sim.initEnd[ii], p),
+                    epics: mine.sort((a, b) => a.ei - b.ei) };
+            }).filter(Boolean);
+
+            rmTable(inits);
+            rmGantt(inits, pl);
+        }
+
+        function rmTable(inits) {
+            document.getElementById('rmResultBody').innerHTML = inits.map(g => {
+                const head = `<tr style="background:#2a3441;font-weight:600"><td>${rmEsc(g.x.name)}</td><td colspan="3">cała inicjatywa</td><td>${rmFmt(g.s50)}</td><td>${rmFmt(g.e50)}</td><td>${rmFmt(g.eP)}</td><td></td><td></td></tr>`;
+                return head + g.epics.map(it => `<tr><td style="padding-left:24px">${rmEsc(it.ep.name)}</td><td>${rmEsc(it.t.name)}</td><td>${rmEsc(it.ep.comp)}</td><td>${it.ep.md}</td>
+                    <td>${rmFmt(it.s50)}</td><td>${rmFmt(it.e50)}</td><td class="${it.risk ? 'risk' : ''}">${rmFmt(it.eP)}</td>
+                    <td>${it.ep.fixed || '–'}</td><td class="${it.ep.fixed ? (it.risk ? 'risk' : 'ok') : ''}">${it.ep.fixed ? Math.round(it.hit * 100) + '%' + (it.risk ? ' ⚠' : ' ✓') : '–'}</td></tr>`).join('');
+            }).join('');
+        }
+
+        function rmGantt(inits, pl) {
+            const svg = d3.select('#rmChart');
+            svg.selectAll('*').remove();
+            const rows = [];
+            inits.forEach(g => { rows.push({ type: 'init', g }); g.epics.forEach(it => rows.push({ type: 'epic', it })); });
+            const rowH = 28, m = { top: 44, right: 30, bottom: 16, left: 270 }, width = 1300;
+            const height = m.top + m.bottom + rows.length * rowH;
+            const allS = rows.map(r => r.type === 'init' ? r.g.s50 : r.it.s50), allE = rows.map(r => r.type === 'init' ? r.g.eP : r.it.eP);
+            const fixedDays = rm.inits.flatMap(x => x.epics.filter(e => e.fixed).map(e => rmDay(e.fixed)));
+            const today = Date.now() / 86400000;
+            const t0 = Math.min(...allS, rmDay(rm.start)) - 3, t1 = Math.max(...allE, ...fixedDays) + 7;
+            svg.attr('width', width).attr('height', height);
+            const x = d3.scaleUtc().domain([new Date(t0 * 86400000), new Date(t1 * 86400000)]).range([m.left, width - m.right]);
+            const X = d => x(new Date(d * 86400000));
+            const axis = svg.append('g').attr('transform', `translate(0,${m.top - 8})`).call(d3.axisTop(x).ticks(14).tickFormat(d3.utcFormat('%d.%m.%y')));
+            axis.selectAll('text').style('fill', '#c9d1d9'); axis.selectAll('.domain, .tick line').attr('stroke', '#3a4553');
+            const color = id => RM_COLORS[Math.max(0, rm.teams.findIndex(t => t.id === id)) % RM_COLORS.length];
+
+            rows.forEach((r, k) => {
+                const y = m.top + k * rowH;
+                svg.append('rect').attr('x', 0).attr('y', y).attr('width', width).attr('height', rowH).attr('fill', k % 2 ? '#151b22' : '#1a2029');
+                if (r.type === 'init') {
+                    svg.append('text').attr('x', 8).attr('y', y + 18).style('font-size', '13px').style('font-weight', '700').style('fill', '#f0f0f0').text(r.g.x.name.slice(0, 36));
+                    svg.append('rect').attr('x', X(r.g.s50)).attr('y', y + 9).attr('width', Math.max(2, X(r.g.eP) - X(r.g.s50))).attr('height', 10).attr('fill', '#6b7787').attr('rx', 2)
+                        .append('title').text(`${r.g.x.name}: ${rmFmt(r.g.s50)} → P${pl} ${rmFmt(r.g.eP)}`);
+                    return;
+                }
+                const it = r.it, c = color(it.ep.team);
+                svg.append('text').attr('x', 24).attr('y', y + 18).style('font-size', '12px').style('fill', '#e0e0e0').text(`${it.ep.name} · ${it.t.name} · ${it.ep.md} MD`.slice(0, 40));
+                const bar = (a, b, op, tip) => svg.append('rect').attr('x', X(a)).attr('y', y + 5).attr('width', Math.max(2, X(b) - X(a))).attr('height', rowH - 10)
+                    .attr('fill', c).attr('opacity', op).attr('rx', 2).append('title').text(tip);
+                bar(it.s50, it.e50, 1, `${it.ep.name}: ${rmFmt(it.s50)} → P50 ${rmFmt(it.e50)}`);
+                bar(it.e50, it.eP, 0.4, `${it.ep.name}: P${pl} ${rmFmt(it.eP)}`);
+                if (it.ep.fixed) {
+                    const fx = X(rmDay(it.ep.fixed)), cy = y + rowH / 2, col = it.risk ? '#ff6b6b' : '#8fd8a4';
+                    svg.append('path').attr('d', `M${fx},${cy - 9}L${fx + 8},${cy}L${fx},${cy + 9}L${fx - 8},${cy}Z`).attr('fill', col).attr('stroke', '#fff')
+                        .append('title').text(`Fixed date ${it.ep.fixed} – szansa ${Math.round(it.hit * 100)}%`);
+                }
+            });
+            if (today > t0 && today < t1) {
+                svg.append('line').attr('x1', X(today)).attr('x2', X(today)).attr('y1', m.top).attr('y2', height - m.bottom).attr('stroke', '#ffd54f').attr('stroke-dasharray', '4,3');
+            }
+            document.getElementById('rmLegend').innerHTML = rm.teams.map((t, i) => `<div class="percentile-line"><span class="legend-dot" style="background:${RM_COLORS[i % RM_COLORS.length]}"></span>${rmEsc(t.name)}</div>`).join('') +
+                `<div class="percentile-line"><span style="display:inline-block;width:25px;height:8px;background:#999"></span>start → P50</div>
+                 <div class="percentile-line"><span style="display:inline-block;width:25px;height:8px;background:#999;opacity:.4"></span>P50 → P${pl}</div>
+                 <div class="percentile-line"><span style="color:#8fd8a4">◆</span> fixed date OK <span style="color:#ff6b6b">◆</span> zagrożony</div>
+                 <div class="percentile-line"><span style="color:#ffd54f">┆</span> dziś</div>`;
+        }
+
     </script>
 </body>
 </html>
