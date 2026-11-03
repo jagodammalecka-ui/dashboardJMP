@@ -70,6 +70,8 @@
         .tab-btn { margin-top: 0; background: #e9eef5; color: #333; border-radius: 4px 4px 0 0; }
         .tab-btn:hover { background: #d5e0ee; }
         .tab-btn.active { background: #0066cc; color: white; }
+        .xmr-info { background: #f0f4fa; border-left: 4px solid #0066cc; border-radius: 4px; padding: 15px 20px; font-size: 13px; line-height: 1.6; color: #333; }
+        .xmr-info ul { margin: 10px 0 0 20px; }
         .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 1000; }
     </style>
 </head>
@@ -152,7 +154,7 @@
 
         <div id="tab-throughput" style="display:none">
             <h1>📈 Tempo dostarczania - wykres XmR</h1>
-            <p class="subtitle">Przepustowość tygodniowa (suma dzienna, tygodnie od 7 stycznia 2025) na podstawie pliku Throughput Daily.xlsx</p>
+            <p class="subtitle">Przepustowość tygodniowa (suma dzienna, tygodnie kalendarzowe pon–niedz, od 7 stycznia 2025) na podstawie pliku Throughput Daily.xlsx</p>
             <div class="chart-container">
                 <div class="percentile-lines">
                     <div class="percentile-line"><div class="line-sample" style="background:#333;height:3px"></div>Średnia / wartości</div>
@@ -164,6 +166,18 @@
             </div>
             <div class="stats" id="xmrStats"></div>
             <p class="subtitle" id="xmrNote"></p>
+            <div class="section-title">ℹ️ O wykresie XMR</div>
+            <div class="xmr-info">
+                <p>Dane z pliku Throughput Daily.xlsx (dzienna przepustowość) zagregowane sumą do tygodni kalendarzowych (poniedziałek–niedziela). Pierwszy tydzień zaczyna się 7 stycznia 2025 (brak danych za 6 stycznia), a ostatni obejmuje dane do 19 kwietnia 2025.</p>
+                <ul>
+                    <li><strong>X̄ (centralna)</strong> = średnia z wartości tygodniowych.</li>
+                    <li><strong>mR̄ (centralna mR)</strong> = średnia z bezwzględnych różnic między kolejnymi tygodniami.</li>
+                    <li><strong>UCL(X)</strong> = X̄ + 2,66 × mR̄, <strong>LCL(X)</strong> = X̄ − 2,66 × mR̄ (ucięta do 0, bo przepustowość nie może być ujemna).</li>
+                    <li><strong>UCL(mR)</strong> = mR̄ + 3,27 × mR̄, <strong>LCL(mR)</strong> = mR̄ − 3,27 × mR̄ (ucięta do 0).</li>
+                    <li>Punkty poza granicami kontrolnymi oznaczają sygnał specjalnej przyczyny zmienności (nie szum procesu).</li>
+                    <li>Szerokość pasma σ = (UNPL − X̄) / 3 = 2,66 × mR̄ / 3 = <strong id="sigmaInfo">-</strong>. Pasma: C (X̄ → ±1σ), B (±1σ → ±2σ), A (±2σ → NPL).</li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -599,16 +613,18 @@
 
         function weeklyThroughput() {
             const start = new Date(DAILY_THROUGHPUT_START + 'T00:00:00Z');
-            const weeks = [];
-            const full = Math.floor(DAILY_THROUGHPUT.length / 7);
-            for (let w = 0; w < full; w++) {
-                const d = new Date(start.getTime() + w * 7 * 86400000);
-                weeks.push({ label: d.toISOString().slice(0, 10), value: d3.sum(DAILY_THROUGHPUT.slice(w * 7, w * 7 + 7)) });
-            }
-            return { weeks, skipped: DAILY_THROUGHPUT.length - full * 7 };
+            const offset = (start.getUTCDay() + 6) % 7; // dni od poniedziałku
+            const map = new Map();
+            DAILY_THROUGHPUT.forEach((v, i) => {
+                const d = new Date(start.getTime() + i * 86400000);
+                const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+                map.set(monday, (map.get(monday) || 0) + v);
+            });
+            const weeks = [...map].map(([label, value]) => ({ label, value }));
+            return { weeks, skipped: 0 };
         }
 
-        function drawLimitChart(svgId, pts, title, center, ucl, lcl, color) {
+        function drawLimitChart(svgId, pts, title, center, ucl, lcl, color, bands) {
             const svg = d3.select('#' + svgId);
             svg.selectAll('*').remove();
             const margin = { top: 35, right: 90, bottom: 55, left: 60 };
@@ -620,6 +636,23 @@
             const vals = pts.map(p => p.value).filter(v => v !== null);
             const lo = Math.min(lcl, d3.min(vals)), hi = Math.max(ucl, d3.max(vals));
             const y = d3.scaleLinear().domain([Math.max(0, lo - (hi - lo) * 0.1), hi + (hi - lo) * 0.1]).nice().range([height, 0]);
+            if (bands) {
+                const sigma = bands.sigma;
+                const zones = [
+                    { from: center + 2 * sigma, to: ucl, name: 'A', fill: '#f8d7da' },
+                    { from: center + sigma, to: center + 2 * sigma, name: 'B', fill: '#fff3cd' },
+                    { from: center, to: center + sigma, name: 'C', fill: '#d4edda' },
+                    { from: center - sigma, to: center, name: 'C', fill: '#d4edda' },
+                    { from: center - 2 * sigma, to: center - sigma, name: 'B', fill: '#fff3cd' },
+                    { from: lcl, to: center - 2 * sigma, name: 'A', fill: '#f8d7da' }
+                ];
+                zones.forEach(z => {
+                    const top = y(Math.min(z.to, y.domain()[1])), bottom = y(Math.max(z.from, y.domain()[0]));
+                    if (bottom <= top) return;
+                    g.append('rect').attr('x', 0).attr('y', top).attr('width', width).attr('height', bottom - top).attr('fill', z.fill).attr('opacity', 0.55);
+                    g.append('text').attr('x', 4).attr('y', top + 12).attr('font-size', 10).attr('fill', '#666').text('Pasmo ' + z.name);
+                });
+            }
             g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x)).selectAll('text').attr('transform', 'rotate(-45)').style('text-anchor', 'end');
             g.append('g').call(d3.axisLeft(y));
             g.append('text').attr('x', width / 2).attr('y', -15).attr('text-anchor', 'middle').style('font-weight', 600).text(title);
@@ -646,17 +679,21 @@
             const xBar = d3.mean(xs);
             const mrBar = d3.mean(mr.filter(v => v !== null));
             const xUcl = xBar + 2.66 * mrBar, xLcl = Math.max(0, xBar - 2.66 * mrBar);
+            const sigma = 2.66 * mrBar / 3;
             const mrUcl = mrBar + 3.27 * mrBar, mrLcl = Math.max(0, mrBar - 3.27 * mrBar);
-            drawLimitChart('xChart', weeks, 'X - przepustowość tygodniowa (liczba dostarczonych)', xBar, xUcl, xLcl, '#1f77b4');
+            drawLimitChart('xChart', weeks, 'X - przepustowość tygodniowa (liczba dostarczonych)', xBar, xUcl, xLcl, '#1f77b4', { sigma: 2.66 * mrBar / 3 });
             drawLimitChart('mrChart', weeks.map((w, i) => ({ label: w.label, value: mr[i] })), 'MR - ruchomy rozstęp (moving range)', mrBar, mrUcl, mrLcl, '#2ca02c');
             const box = (l, v, d) => `<div class="stat-box"><div class="stat-label">${l}</div><div class="stat-value">${v}</div><div class="stat-detail">${d}</div></div>`;
             document.getElementById('xmrStats').innerHTML =
                 box('Średnia (X̄)', xBar.toFixed(2), `n = ${xs.length} tygodni`) +
                 box('Średni MR (MR̄)', mrBar.toFixed(2), 'średnia ruchomych rozstępów') +
-                box('Korytarz X', `${xLcl.toFixed(2)} – ${xUcl.toFixed(2)}`, 'X̄ ± 2,66 × MR̄, dolna granica nie mniejsza niż 0') +
-                box('Granice MR', `${mrLcl.toFixed(2)} – ${mrUcl.toFixed(2)}`, 'MR̄ ± 3,27 × MR̄, dolna granica nie mniejsza niż 0');
-            document.getElementById('xmrNote').textContent = skipped
-                ? `Pominięto ostatni niepełny tydzień (${skipped} dni) - wykres obejmuje tylko pełne tygodnie.` : '';
+                box('Korytarz X', `${xLcl.toFixed(2)} – ${xUcl.toFixed(2)}`, 'X̄ ± 2,66 × MR̄, LCL ucięta do 0') +
+                box('Granice MR', `${mrLcl.toFixed(2)} – ${mrUcl.toFixed(2)}`, 'MR̄ ± 3,27 × MR̄, LCL ucięta do 0');
+            const outX = weeks.filter(w => w.value > xUcl || w.value < xLcl).length;
+            const outMR = mr.filter(v => v !== null && (v > mrUcl || v < mrLcl)).length;
+            document.getElementById('sigmaInfo').textContent = sigma.toFixed(2);
+            document.getElementById('xmrNote').textContent = `Punkty poza granicami: X = ${outX}, MR = ${outMR}.` + (skipped
+                ? ` Pominięto ${skipped} dni.` : '');
         }
 
         window.addEventListener('resize', () => {
