@@ -7,15 +7,15 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px; }
-        h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
-        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1419; color: #e0e0e0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: #1a2029; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); padding: 30px; }
+        h1 { color: #f0f0f0; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #9aa5b1; margin-bottom: 30px; font-size: 14px; }
         
         .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .control-group { background: #f9f9f9; padding: 15px; border-radius: 6px; border-left: 4px solid #0066cc; }
-        .control-group label { display: block; font-weight: 600; margin-bottom: 10px; color: #333; font-size: 13px; }
-        .control-group input, .control-group select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .control-group { background: #232b36; padding: 15px; border-radius: 6px; border-left: 4px solid #0066cc; }
+        .control-group label { display: block; font-weight: 600; margin-bottom: 10px; color: #e0e0e0; font-size: 13px; }
+        .control-group input, .control-group select { width: 100%; padding: 8px 12px; border: 1px solid #3a4553; border-radius: 4px; font-size: 13px; background: #151b22; color: #e0e0e0; color-scheme: dark; }
         .control-group input:focus, .control-group select:focus { outline: none; border-color: #0066cc; }
         
         button { padding: 10px 16px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background 0.3s; margin-top: 20px; }
@@ -25,14 +25,14 @@
         button.danger { background: #d32f2f; }
         button.danger:hover { background: #b71c1c; }
         
-        .chart-container { background: #fafafa; border-radius: 6px; padding: 20px; margin-bottom: 30px; position: relative; overflow-x: auto; }
-        svg { display: block; margin: 0 auto; }
+        .chart-container { background: #151b22; border-radius: 6px; padding: 20px; margin-bottom: 30px; position: relative; overflow-x: auto; }
+        svg { display: block; margin: 0 auto; color: #c9d1d9; fill: #c9d1d9; }
         
         .legend { display: flex; gap: 30px; justify-content: center; margin: 20px 0; flex-wrap: wrap; font-size: 13px; }
         .legend-item { display: flex; align-items: center; gap: 8px; }
         .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
         
-        .percentile-lines { display: flex; gap: 30px; justify-content: center; margin: 15px 0; flex-wrap: wrap; font-size: 12px; background: #fff; padding: 15px; border-radius: 4px; }
+        .percentile-lines { display: flex; gap: 30px; justify-content: center; margin: 15px 0; flex-wrap: wrap; font-size: 12px; background: #1a2029; padding: 15px; border-radius: 4px; }
         .percentile-line { display: flex; align-items: center; gap: 8px; }
         .line-sample { width: 25px; height: 2px; }
         
@@ -46,9 +46,9 @@
         .stat-detail { font-size: 11px; opacity: 0.85; }
         
         .data-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
-        .data-table th { background: #0066cc; color: white; padding: 12px; text-align: left; }
-        .data-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
-        .data-table tr:hover { background: #f9f9f9; }
+        .data-table th { background: #0b4f94; color: white; padding: 12px; text-align: left; }
+        .data-table td { padding: 10px 12px; border-bottom: 1px solid #2d3743; }
+        .data-table tr:hover { background: #232b36; }
         .data-table .size-s { color: #1f77b4; font-weight: 600; }
         .data-table .size-m { color: #2ca02c; font-weight: 600; }
         .data-table .size-l { color: #e07b00; font-weight: 600; }
@@ -56,21 +56,21 @@
         .delete-btn:hover { background: #b71c1c; }
         
         .message { padding: 12px 15px; border-radius: 4px; margin: 15px 0; }
-        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .message.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .message.success { background: #12301c; color: #8fd8a4; border: 1px solid #1f5a33; }
+        .message.error { background: #3a1519; color: #f1a0a7; border: 1px solid #6b2a31; }
+        .message.info { background: #11313a; color: #8fd3e3; border: 1px solid #1f5a68; }
         
-        .section-title { font-size: 16px; font-weight: 600; color: #333; margin: 30px 0 15px 0; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        .section-title { font-size: 16px; font-weight: 600; color: #f0f0f0; margin: 30px 0 15px 0; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
         
-        .filters { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #f0f4fa; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; }
+        .filters { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #232b36; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; }
         .filters button { margin-top: 0; padding: 6px 12px; }
-        .filters input[type=date] { padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; }
-        #filterInfo { color: #555; margin-left: auto; }
+        .filters input[type=date] { padding: 4px 6px; border: 1px solid #3a4553; border-radius: 4px; background: #151b22; color: #e0e0e0; color-scheme: dark; }
+        #filterInfo { color: #9aa5b1; margin-left: auto; }
         .tabs { display: flex; gap: 8px; border-bottom: 2px solid #0066cc; margin-bottom: 25px; }
-        .tab-btn { margin-top: 0; background: #e9eef5; color: #333; border-radius: 4px 4px 0 0; }
-        .tab-btn:hover { background: #d5e0ee; }
+        .tab-btn { margin-top: 0; background: #232b36; color: #e0e0e0; border-radius: 4px 4px 0 0; }
+        .tab-btn:hover { background: #2e3947; }
         .tab-btn.active { background: #0066cc; color: white; }
-        .xmr-info { background: #f0f4fa; border-left: 4px solid #0066cc; border-radius: 4px; padding: 15px 20px; font-size: 13px; line-height: 1.6; color: #333; }
+        .xmr-info { background: #232b36; border-left: 4px solid #0066cc; border-radius: 4px; padding: 15px 20px; font-size: 13px; line-height: 1.6; color: #d0d7de; }
         .xmr-info ul { margin: 10px 0 0 20px; }
         .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 1000; }
     </style>
@@ -157,9 +157,9 @@
             <p class="subtitle">Przepustowość tygodniowa (suma dzienna, tygodnie kalendarzowe pon–niedz, od 7 stycznia 2025) na podstawie pliku Throughput Daily.xlsx</p>
             <div class="chart-container">
                 <div class="percentile-lines">
-                    <div class="percentile-line"><div class="line-sample" style="background:#333;height:3px"></div>Średnia / wartości</div>
-                    <div class="percentile-line"><div class="line-sample" style="background:#d32f2f"></div>Granice (UCL/LCL)</div>
-                    <div class="percentile-line"><span class="legend-dot" style="background:#d32f2f"></span>Poza granicami</div>
+                    <div class="percentile-line"><div class="line-sample" style="background:#c9d1d9;height:3px"></div>Średnia / wartości</div>
+                    <div class="percentile-line"><div class="line-sample" style="background:#ff6b6b"></div>Granice (UCL/LCL)</div>
+                    <div class="percentile-line"><span class="legend-dot" style="background:#ff6b6b"></span>Poza granicami</div>
                 </div>
                 <svg id="xChart"></svg>
                 <svg id="mrChart"></svg>
@@ -362,7 +362,7 @@
             
             if (parsedData.length === 0) {
                 g.append('text').attr('x', width / 2).attr('y', height / 2).attr('text-anchor', 'middle')
-                    .attr('fill', '#666').text('Brak danych dla wybranych filtrów');
+                    .attr('fill', '#9aa5b1').text('Brak danych dla wybranych filtrów');
                 updateStats(data);
                 updateCounts(data);
                 renderTable(data);
@@ -429,7 +429,7 @@
                 .attr('r', 6)
                 .attr('fill', d => colors[d["Deklarowany rozmiar"]])
                 .attr('opacity', 0.7)
-                .attr('stroke', '#fff')
+                .attr('stroke', '#1a2029')
                 .attr('stroke-width', 2)
                 .on('mouseover', function(e, d) {
                     d3.select(this).attr('r', 8).attr('opacity', 1);
@@ -462,7 +462,7 @@
             g.append('text')
                 .attr('x', width / 2)
                 .attr('y', height + 50)
-                .attr('fill', '#333')
+                .attr('fill', '#c9d1d9')
                 .attr('text-anchor', 'middle')
                 .attr('font-weight', 'bold')
                 .text('📅 Data ukończenia');
@@ -478,7 +478,7 @@
                 .attr('transform', 'rotate(-90)')
                 .attr('y', -45)
                 .attr('x', -height / 2)
-                .attr('fill', '#333')
+                .attr('fill', '#c9d1d9')
                 .attr('text-anchor', 'middle')
                 .attr('font-weight', 'bold')
                 .text('⏱️ Czas realizacji (dni)');
@@ -639,18 +639,18 @@
             if (bands) {
                 const sigma = bands.sigma;
                 const zones = [
-                    { from: center + 2 * sigma, to: ucl, name: 'A', fill: '#f8d7da' },
-                    { from: center + sigma, to: center + 2 * sigma, name: 'B', fill: '#fff3cd' },
-                    { from: center, to: center + sigma, name: 'C', fill: '#d4edda' },
-                    { from: center - sigma, to: center, name: 'C', fill: '#d4edda' },
-                    { from: center - 2 * sigma, to: center - sigma, name: 'B', fill: '#fff3cd' },
-                    { from: lcl, to: center - 2 * sigma, name: 'A', fill: '#f8d7da' }
+                    { from: center + 2 * sigma, to: ucl, name: 'A', fill: '#5a2329' },
+                    { from: center + sigma, to: center + 2 * sigma, name: 'B', fill: '#5a4a1c' },
+                    { from: center, to: center + sigma, name: 'C', fill: '#1f4a2c' },
+                    { from: center - sigma, to: center, name: 'C', fill: '#1f4a2c' },
+                    { from: center - 2 * sigma, to: center - sigma, name: 'B', fill: '#5a4a1c' },
+                    { from: lcl, to: center - 2 * sigma, name: 'A', fill: '#5a2329' }
                 ];
                 zones.forEach(z => {
                     const top = y(Math.min(z.to, y.domain()[1])), bottom = y(Math.max(z.from, y.domain()[0]));
                     if (bottom <= top) return;
-                    g.append('rect').attr('x', 0).attr('y', top).attr('width', width).attr('height', bottom - top).attr('fill', z.fill).attr('opacity', 0.55);
-                    g.append('text').attr('x', 4).attr('y', top + 12).attr('font-size', 10).attr('fill', '#666').text('Pasmo ' + z.name);
+                    g.append('rect').attr('x', 0).attr('y', top).attr('width', width).attr('height', bottom - top).attr('fill', z.fill).attr('opacity', 0.75);
+                    g.append('text').attr('x', 4).attr('y', top + 12).attr('font-size', 10).attr('fill', '#b0b8c1').text('Pasmo ' + z.name);
                 });
             }
             g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x)).selectAll('text').attr('transform', 'rotate(-45)').style('text-anchor', 'end');
@@ -660,15 +660,15 @@
                 g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(v)).attr('y2', y(v)).attr('stroke', c).attr('stroke-width', 1.5).attr('stroke-dasharray', dash);
                 g.append('text').attr('x', width + 5).attr('y', y(v) + 4).attr('font-size', 11).attr('fill', c).text(`${label} ${v.toFixed(2)}`);
             };
-            line(ucl, '#d32f2f', '6,4', 'UCL');
-            line(center, '#555', '', 'Śr.');
-            line(lcl, '#d32f2f', '6,4', 'LCL');
+            line(ucl, '#ff6b6b', '6,4', 'UCL');
+            line(center, '#c9d1d9', '', 'Śr.');
+            line(lcl, '#ff6b6b', '6,4', 'LCL');
             const defined = pts.filter(p => p.value !== null);
             g.append('path').datum(defined).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
                 .attr('d', d3.line().x(p => x(p.label)).y(p => y(p.value)));
             g.selectAll('circle').data(defined).enter().append('circle')
                 .attr('cx', p => x(p.label)).attr('cy', p => y(p.value)).attr('r', 5)
-                .attr('fill', p => (p.value > ucl || p.value < lcl) ? '#d32f2f' : color)
+                .attr('fill', p => (p.value > ucl || p.value < lcl) ? '#ff6b6b' : color)
                 .append('title').text(p => `Tydzień od ${p.label}: ${p.value}`);
         }
 
