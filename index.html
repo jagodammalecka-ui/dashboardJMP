@@ -199,24 +199,39 @@
             </style>
             <h1>🗺️ Roadmapa i prognoza</h1>
             <p class="subtitle">Wiele zespołów, wiele inicjatyw. Prognoza Monte Carlo (domyślnie scenariusz 85% ukończenia każdego epiku) uwzględnia estymaty czasu trwania, wartość w MD oraz capacity zespołów w kompetencjach.</p>
+            <div class="tabs" id="rmSubTabs">
+                <button class="tab-btn active" id="rmbtn-init" onclick="rmShowSub('init')">Inicjatywy</button>
+                <button class="tab-btn" id="rmbtn-est" onclick="rmShowSub('est')">Estymacje i kompetencje</button>
+                <button class="tab-btn" id="rmbtn-teams" onclick="rmShowSub('teams')">Zespoły</button>
+                <button class="tab-btn" id="rmbtn-map" onclick="rmShowSub('map')">Roadmapa</button>
+            </div>
+            <div id="rmpane-init">
+                <div class="section-title" style="margin-top:0">📌 Inicjatywy</div>
+                <div id="rmInits"></div>
+                <input type="text" id="rmNewInit" class="inline-input" placeholder="Nazwa inicjatywy">
+                <button class="small" onclick="rmAddInit()">+ Dodaj inicjatywę</button>
+                <button class="small secondary" onclick="rmReset()">Przywróć przykładowe dane</button>
+            </div>
+            <div id="rmpane-est" style="display:none">
+                <div class="section-title" style="margin-top:0">🧩 Kompetencje</div>
+                <div id="rmComps"></div>
+                <input type="text" id="rmNewComp" class="inline-input" placeholder="Nowa kompetencja">
+                <button class="small" onclick="rmAddComp()">+ Dodaj kompetencję</button>
+                <div class="section-title">📐 Epiki: wartość (MD), estymaty min/max i fixed date</div>
+                <div id="rmEpics"></div>
+            </div>
+            <div id="rmpane-teams" style="display:none">
+                <div class="section-title" style="margin-top:0">👥 Zespoły i capacity (MD / miesiąc w danej kompetencji)</div>
+                <div id="rmTeams"></div>
+                <input type="text" id="rmNewTeam" class="inline-input" placeholder="Nazwa zespołu">
+                <button class="small" onclick="rmAddTeam()">+ Dodaj zespół</button>
+            </div>
+            <div id="rmpane-map" style="display:none">
             <div class="controls">
                 <div class="control-group"><label for="rmStart">Domyślna data startu</label><input type="date" id="rmStart" data-p="start"></div>
                 <div class="control-group"><label for="rmPct">Poziom pewności (%)</label><input type="number" id="rmPct" min="50" max="99" data-p="pct" data-num="1"></div>
                 <div class="control-group"><label for="rmSims">Liczba symulacji</label><input type="number" id="rmSims" min="200" max="20000" step="200" data-p="sims" data-num="1"></div>
             </div>
-            <div class="section-title">🧩 Kompetencje</div>
-            <div id="rmComps"></div>
-            <input type="text" id="rmNewComp" class="inline-input" placeholder="Nowa kompetencja">
-            <button class="small" onclick="rmAddComp()">+ Dodaj kompetencję</button>
-            <div class="section-title">👥 Zespoły i capacity (MD / miesiąc w danej kompetencji)</div>
-            <div id="rmTeams"></div>
-            <input type="text" id="rmNewTeam" class="inline-input" placeholder="Nazwa zespołu">
-            <button class="small" onclick="rmAddTeam()">+ Dodaj zespół</button>
-            <div class="section-title">📌 Inicjatywy</div>
-            <div id="rmInits"></div>
-            <input type="text" id="rmNewInit" class="inline-input" placeholder="Nazwa inicjatywy">
-            <button class="small" onclick="rmAddInit()">+ Dodaj inicjatywę</button>
-            <button class="small secondary" onclick="rmReset()">Przywróć przykładowe dane</button>
             <div id="rmMessage"></div>
             <div class="section-title">📅 Gantt</div>
             <div class="chart-container">
@@ -235,6 +250,7 @@
                     <li>Fixed date: romb na osi; epik jest „zagrożony”, gdy koniec na poziomie pewności wypada po tej dacie. Podajemy też szansę dotrzymania terminu.</li>
                     <li>Brak capacity (0 MD) w danej kompetencji oznacza brak ograniczenia zasobowego – liczy się wyłącznie przedział min–max.</li>
                 </ul>
+            </div>
             </div>
         </div>
     </div>
@@ -875,6 +891,14 @@
         }
         function rmRemoveEpic(i, j) { rm.inits[i].epics.splice(j, 1); rmSave(); rmRender(); rmRun(); }
 
+        function rmShowSub(name) {
+            ['init', 'est', 'teams', 'map'].forEach(n => {
+                document.getElementById('rmpane-' + n).style.display = n === name ? '' : 'none';
+                document.getElementById('rmbtn-' + n).classList.toggle('active', n === name);
+            });
+            if (name === 'map') rmRun();
+        }
+
         function rmRender() {
             ['start', 'pct', 'sims'].forEach(k => { document.querySelector(`#tab-roadmap [data-p="${k}"]`).value = rm[k]; });
 
@@ -889,8 +913,6 @@
             document.getElementById('rmInits').innerHTML = rm.inits.map((x, i) => {
                 const teamChecks = rm.teams.map(t => `<label><input type="checkbox" data-arr="inits.${i}.teams" data-val="${t.id}" data-num="1" ${x.teams.includes(t.id) ? 'checked' : ''}>${rmEsc(t.name)}</label>`).join('');
                 const compChecks = rm.comps.map(c => `<label><input type="checkbox" data-arr="inits.${i}.comps" data-val="${rmEsc(c)}" ${x.comps.includes(c) ? 'checked' : ''}>${rmEsc(c)}</label>`).join('');
-                const teamOpts = ep => `<option value="">—</option>` + rm.teams.filter(t => x.teams.includes(t.id)).map(t => `<option value="${t.id}" ${t.id === ep.team ? 'selected' : ''}>${rmEsc(t.name)}</option>`).join('');
-                const compOpts = ep => `<option value="">—</option>` + x.comps.map(c => `<option value="${rmEsc(c)}" ${c === ep.comp ? 'selected' : ''}>${rmEsc(c)}</option>`).join('');
                 return `<div class="rm-card">
                     <div class="rm-card-head">
                         <input type="text" class="inline-input" style="font-weight:600;min-width:220px" value="${rmEsc(x.name)}" data-p="inits.${i}.name">
@@ -899,7 +921,14 @@
                         <button class="small danger" style="margin-left:auto" onclick="rmRemoveInit(${i})">Usuń inicjatywę</button>
                     </div>
                     <div class="rm-checks"><strong>Zespoły:</strong>${teamChecks || '—'}</div>
-                    <div class="rm-checks"><strong>Kompetencje:</strong>${compChecks || '—'}</div>
+                    <div class="rm-checks"><strong>Kompetencje:</strong>${compChecks || '—'}</div></div>`;
+            }).join('') || '<p class="subtitle">Dodaj co najmniej dwie inicjatywy.</p>';
+
+            document.getElementById('rmEpics').innerHTML = rm.inits.map((x, i) => {
+                const teamOpts = ep => `<option value="">—</option>` + rm.teams.filter(t => x.teams.includes(t.id)).map(t => `<option value="${t.id}" ${t.id === ep.team ? 'selected' : ''}>${rmEsc(t.name)}</option>`).join('');
+                const compOpts = ep => `<option value="">—</option>` + x.comps.map(c => `<option value="${rmEsc(c)}" ${c === ep.comp ? 'selected' : ''}>${rmEsc(c)}</option>`).join('');
+                return `<div class="rm-card">
+                    <div class="rm-card-head"><strong>${rmEsc(x.name)}</strong><span style="color:#9aa5b1;font-size:12px">zespoły i kompetencje do wyboru ustawiasz w zakładce „Inicjatywy”</span></div>
                     <table class="data-table"><thead><tr><th>Epik</th><th>Wartość (MD)</th><th>Zespół</th><th>Kompetencja</th><th>Min (tyg.)</th><th>Max (tyg.)</th><th>Fixed date</th><th></th></tr></thead><tbody>` +
                     x.epics.map((ep, j) => `<tr>
                         <td><input type="text" value="${rmEsc(ep.name)}" data-p="inits.${i}.epics.${j}.name"></td>
